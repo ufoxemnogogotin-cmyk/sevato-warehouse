@@ -1,30 +1,23 @@
 import { NextResponse } from "next/server";
 
+const PASSWORD = process.env.WAREHOUSE_PASSWORD;
+
 export async function POST(req: Request) {
   const { password } = await req.json();
 
-  const expectedPassword = process.env.WAREHOUSE_PASSWORD;
-
-  if (!expectedPassword) {
-    return NextResponse.json(
-      { ok: false, error: "Server password is not configured." },
-      { status: 500 }
-    );
-  }
-
-  if (password !== expectedPassword) {
+  if (!PASSWORD || password !== PASSWORD) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
   const res = NextResponse.json({ ok: true });
 
-  // Слагаме cookie за 30 дни
-  res.cookies.set("warehouse_auth", "ok", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
+  // Cookie, което казва "този човек е логнат"
+  res.cookies.set("warehouse_auth", "1", {
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+    maxAge: 60 * 60 * 24 * 7, // 7 дни
   });
 
   return res;
