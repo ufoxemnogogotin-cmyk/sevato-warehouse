@@ -1,23 +1,34 @@
 import { NextResponse } from "next/server";
 
-const PASSWORD = process.env.WAREHOUSE_PASSWORD;
-
 export async function POST(req: Request) {
   const { password } = await req.json();
 
-  if (!PASSWORD || password !== PASSWORD) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  const expectedPassword = process.env.WAREHOUSE_ADMIN_PASSWORD;
+
+  if (!expectedPassword) {
+    console.error("WAREHOUSE_ADMIN_PASSWORD is not set");
+    return NextResponse.json(
+      { success: false, error: "Server misconfigured" },
+      { status: 500 }
+    );
   }
 
-  const res = NextResponse.json({ ok: true });
+  if (!password || password !== expectedPassword) {
+    return NextResponse.json(
+      { success: false, error: "Invalid password" },
+      { status: 401 }
+    );
+  }
 
-  // Cookie, което казва "този човек е логнат"
-  res.cookies.set("warehouse_auth", "1", {
-    path: "/",
+  const res = NextResponse.json({ success: true });
+
+  // cookie за достъп
+  res.cookies.set("sevato_auth", "ok", {
     httpOnly: true,
-    sameSite: "lax",
     secure: true,
-    maxAge: 60 * 60 * 24 * 7, // 7 дни
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30, // 30 дни
   });
 
   return res;

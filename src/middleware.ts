@@ -1,36 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/favicon.ico"];
+const PUBLIC_PATHS = ["/login", "/api/login"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Разрешаваме:
-  // - самата login страница
-  // - API за логин
-  // - next статиките / images / favicon
-  if (
-    PUBLIC_PATHS.includes(pathname) ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/login")
-  ) {
+  // Позволяваме login и API-то за login
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  const authCookie = req.cookies.get("warehouse_auth");
+  const session = req.cookies.get("sevato_auth");
 
-  // Ако няма cookie -> пращаме на /login
-  if (!authCookie) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("from", pathname || "/");
-    return NextResponse.redirect(url);
+  if (session?.value === "ok") {
+    // Има валидно cookie → пускаме
+    return NextResponse.next();
   }
 
-  // Има cookie -> пускаме към страницата
-  return NextResponse.next();
+  // Няма cookie → пращаме на login
+  const loginUrl = new URL("/login", req.url);
+  loginUrl.searchParams.set("from", pathname || "/");
+
+  return NextResponse.redirect(loginUrl);
 }
 
+// Middleware да важи за всичко без статичните файлове
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
