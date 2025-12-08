@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 
+type ApiSuccessFlag = {
+  success?: boolean;
+  ok?: boolean;
+  url?: string;
+  error?: string;
+};
+
 export default function BuildAIPage() {
   const [modelName, setModelName] = useState("");
   const [parts, setParts] = useState("");
@@ -9,19 +16,40 @@ export default function BuildAIPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // helper – true ако API-то е върнало success/ok
+  function isSuccess(resp: ApiSuccessFlag | undefined | null) {
+    if (!resp) return false;
+    return resp.success === true || resp.ok === true;
+  }
+
   async function uploadImage() {
+    if (!image) {
+      throw new Error("Няма избрана снимка.");
+    }
+
     const body = new FormData();
-    body.append("file", image as File);
+    body.append("file", image);
 
     const res = await fetch("/api/upload-training-image", {
       method: "POST",
       body,
     });
 
-    return res.json();
+    let json: ApiSuccessFlag | undefined;
+    try {
+      json = (await res.json()) as ApiSuccessFlag;
+    } catch {
+      json = undefined;
+    }
+
+    if (!res.ok || !isSuccess(json) || !json?.url) {
+      throw new Error(json?.error || "Грешка при качване на снимката.");
+    }
+
+    return json.url;
   }
 
-  async function handleSubmit(e: any) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus(null);
 
@@ -32,36 +60,47 @@ export default function BuildAIPage() {
 
     setLoading(true);
 
-    const upload = await uploadImage();
+    try {
+      // 1) качваме снимката
+      const imageUrl = await uploadImage();
 
-    if (!upload.ok) {
-      setStatus("Грешка при качване на снимката.");
-      setLoading(false);
-      return;
-    }
+      // 2) пращаме модела към /api/train-model
+      const res = await fetch("/api/train-model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // ❗ Тук имената трябва да съвпадат с route.ts
+          // ако там ползваш `model_name` / `image_url` – смени ги
+          name: modelName,
+          parts,        // пращаме целия стринг, бекендът може да сплитне
+          imageUrl,
+        }),
+      });
 
-    const res = await fetch("/api/train-model", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model_name: modelName,
-        parts: parts.split(",").map((p) => p.trim()),
-        image_url: upload.url,
-      }),
-    });
+      let data: ApiSuccessFlag | undefined;
+      try {
+        data = (await res.json()) as ApiSuccessFlag;
+      } catch {
+        data = undefined;
+      }
 
-    const data = await res.json();
+      if (!res.ok || !isSuccess(data)) {
+        setStatus(data?.error || "Грешка при записа.");
+        setLoading(false);
+        return;
+      }
 
-    if (data.ok) {
+      // успех
       setStatus("Обучението е записано успешно! ✅");
       setModelName("");
       setParts("");
       setImage(null);
-    } else {
-      setStatus("Грешка при записа.");
+    } catch (err: any) {
+      console.error("Build AI error:", err);
+      setStatus(err?.message || "Неочаквана грешка.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
@@ -87,7 +126,6 @@ export default function BuildAIPage() {
           border: "1px solid #222",
         }}
       >
-        {/* Заглавие */}
         <h1
           style={{
             fontSize: 32,
@@ -104,12 +142,8 @@ export default function BuildAIPage() {
           Добавяне на обучителен модел + части.
         </p>
 
-        {/* Форма */}
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "grid", gap: 20 }}
-        >
-          {/* Поле: Име на модела */}
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 20 }}>
+          {/* Име на модела */}
           <div>
             <label style={{ opacity: 0.9 }}>Име на модела:</label>
             <input
@@ -124,11 +158,11 @@ export default function BuildAIPage() {
                 border: "1px solid #333",
                 color: "white",
               }}
-              placeholder="Пример: Daytona Panda"
+              placeholder="Пример: GMT Bruce Wayne"
             />
           </div>
 
-          {/* Поле: Части */}
+          {/* Части */}
           <div>
             <label style={{ opacity: 0.9 }}>Части (разделени със запетая):</label>
             <input
@@ -143,11 +177,11 @@ export default function BuildAIPage() {
                 border: "1px solid #333",
                 color: "white",
               }}
-              placeholder="NH35, Ceramic Bezel Black, Sapphire Crystal..."
+              placeholder="NH34, CASE + STRAP, DIAL GMT BLACK/GREEN..."
             />
           </div>
 
-          {/* Поле: Снимка */}
+          {/* Снимка */}
           <div>
             <label style={{ opacity: 0.9 }}>Снимка на модела:</label>
             <input
@@ -174,15 +208,16 @@ export default function BuildAIPage() {
               color: "white",
               borderRadius: 6,
               border: "none",
-              cursor: "pointer",
+              cursor: loading ? "default" : "pointer",
               fontSize: 16,
               marginTop: 10,
+              opacity: loading ? 0.7 : 1,
             }}
           >
             {loading ? "Записване..." : "Запиши обучението"}
           </button>
 
-          {/* Статус */}
+          {/* Статус / грешка */}
           {status && (
             <p
               style={{
