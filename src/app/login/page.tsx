@@ -1,16 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("from") || "/";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,19 +19,18 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        setStatus(data.error || "Грешна парола.");
-        setLoading(false);
-        return;
+      if (res.ok) {
+        // ако има ?from=/build го взима, иначе връща към /
+        const params = new URLSearchParams(window.location.search);
+        const from = params.get("from") || "/";
+        window.location.href = from;
+      } else {
+        setStatus("Грешна парола.");
       }
-
-      // успех – пренасочваме към началната
-      router.push(redirectTo);
     } catch (err) {
       console.error(err);
-      setStatus("Нещо се счупи. Пробвай пак.");
+      setStatus("Проблем със сървъра.");
+    } finally {
       setLoading(false);
     }
   }
@@ -56,34 +50,24 @@ export default function LoginPage() {
       <div
         style={{
           background: "#020617",
-          borderRadius: 16,
+          border: "1px solid #1f2937",
+          borderRadius: 12,
           padding: 32,
           width: "100%",
-          maxWidth: 400,
-          boxShadow: "0 0 40px rgba(0,0,0,0.8)",
-          border: "1px solid #1f2937",
+          maxWidth: 360,
+          boxShadow: "0 0 30px rgba(0,0,0,0.6)",
         }}
       >
-        <h1
-          style={{
-            fontSize: 32,
-            fontWeight: 300,
-            letterSpacing: 4,
-            textAlign: "center",
-            marginBottom: 24,
-          }}
-        >
-          SEVATO
-        </h1>
-        <p style={{ textAlign: "center", marginBottom: 24, color: "#9ca3af" }}>
-          Вход към Sevato Warehouse System
+        <h1 style={{ fontSize: 24, marginBottom: 8 }}>SEVATO Warehouse</h1>
+        <p style={{ marginBottom: 24, color: "#9ca3af", fontSize: 14 }}>
+          Вход с парола.
         </p>
 
         <form
           onSubmit={handleSubmit}
-          style={{ display: "grid", gap: 16 }}
+          style={{ display: "grid", gap: 12 }}
         >
-          <label style={{ display: "grid", gap: 6 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
             Парола:
             <input
               type="password"
@@ -91,7 +75,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               style={{
                 padding: 10,
-                borderRadius: 8,
+                borderRadius: 6,
                 border: "1px solid #374151",
                 background: "#020617",
                 color: "white",
@@ -103,21 +87,23 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             style={{
-              marginTop: 4,
+              marginTop: 8,
               padding: "10px 16px",
-              borderRadius: 8,
+              borderRadius: 6,
               border: "none",
               background: "#16a34a",
               color: "white",
-              fontWeight: 500,
               cursor: "pointer",
+              fontWeight: 500,
             }}
           >
-            {loading ? "Влизане..." : "Влез"}
+            {loading ? "Влизане..." : "Вход"}
           </button>
 
           {status && (
-            <p style={{ color: "#f97316", fontSize: 14 }}>{status}</p>
+            <p style={{ marginTop: 8, color: "#f97316", fontSize: 14 }}>
+              {status}
+            </p>
           )}
         </form>
       </div>
