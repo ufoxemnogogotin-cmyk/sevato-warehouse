@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+const STORAGE_KEY = "sevato_warehouse_auth";
+const PASSWORD = process.env.NEXT_PUBLIC_WAREHOUSE_ADMIN_PASSWORD ?? "";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -9,19 +12,36 @@ export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
 
-  const correctPassword = process.env
-    .NEXT_PUBLIC_WAREHOUSE_ADMIN_PASSWORD as string;
+  // ако вече сме логнати → директно към /
+  useEffect(() => {
+    if (!PASSWORD) return;
 
-  function handleLogin(e: React.FormEvent) {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem(STORAGE_KEY)
+        : null;
+
+    if (token === PASSWORD) {
+      const from = search.get("from") || "/";
+      router.replace(from);
+    }
+  }, [router, search]);
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    if (password === correctPassword) {
-      localStorage.setItem("warehouse-auth", "ok");
+    if (!PASSWORD) {
+      setError("Server password not configured.");
+      return;
+    }
+
+    if (password === PASSWORD) {
+      localStorage.setItem(STORAGE_KEY, PASSWORD);
       const from = search.get("from") || "/";
       router.replace(from);
     } else {
-      setError("Невалидна парола.");
+      setError("Грешна парола.");
     }
   }
 
@@ -38,40 +58,40 @@ export default function LoginPage() {
     >
       <div
         style={{
-          width: "100%",
-          maxWidth: 360,
-          padding: 32,
+          background: "#020617",
           borderRadius: 12,
-          background: "#0f172a",
-          border: "1px solid #1e293b",
-          boxShadow: "0 0 40px rgba(0,0,0,0.4)",
+          padding: 32,
+          width: "100%",
+          maxWidth: 380,
+          boxShadow: "0 0 40px rgba(0,0,0,0.7)",
+          border: "1px solid #1f2937",
         }}
       >
         <h1
           style={{
+            fontSize: 20,
+            marginBottom: 8,
             textAlign: "center",
-            marginBottom: 12,
-            fontSize: 22,
-            letterSpacing: 1,
+            letterSpacing: 2,
           }}
         >
           SEVATO Warehouse
         </h1>
 
-        <form onSubmit={handleLogin} style={{ display: "grid", gap: 12 }}>
-          <label style={{ fontSize: 14 }}>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+          <label style={{ fontSize: 13 }}>
             Парола:
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={{
-                marginTop: 6,
+                marginTop: 4,
                 width: "100%",
-                padding: "8px 12px",
+                padding: "8px 10px",
                 borderRadius: 6,
+                border: "1px solid #374151",
                 background: "#020617",
-                border: "1px solid #334155",
                 color: "white",
               }}
             />
@@ -80,12 +100,13 @@ export default function LoginPage() {
           <button
             type="submit"
             style={{
-              padding: "10px 14px",
+              marginTop: 8,
+              padding: "8px 12px",
               borderRadius: 6,
               border: "none",
               background: "#16a34a",
               color: "white",
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
             }}
           >
@@ -93,7 +114,7 @@ export default function LoginPage() {
           </button>
 
           {error && (
-            <p style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>
+            <p style={{ color: "#f97316", fontSize: 13, marginTop: 4 }}>
               {error}
             </p>
           )}

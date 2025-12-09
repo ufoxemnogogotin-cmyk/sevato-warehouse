@@ -1,24 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+
+const STORAGE_KEY = "sevato_warehouse_auth";
+const PASSWORD = process.env.NEXT_PUBLIC_WAREHOUSE_ADMIN_PASSWORD ?? "";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const isLogin = pathname === "/login";
+    // login страницата е публична
+    if (pathname === "/login") {
+      setReady(true);
+      return;
+    }
 
-    const auth =
+    // четем от localStorage
+    const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("warehouse-auth")
+        ? localStorage.getItem(STORAGE_KEY)
         : null;
 
-    if (!auth && !isLogin) {
+    // ако няма токен → пращаме към /login
+    if (!token || token !== PASSWORD) {
       router.replace(`/login?from=${encodeURIComponent(pathname || "/")}`);
+      return;
     }
+
+    setReady(true);
   }, [pathname, router]);
+
+  if (!ready) return null;
 
   return <>{children}</>;
 }
