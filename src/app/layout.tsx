@@ -1,27 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import AuthGuard from "./AuthGuard";
 
 export const metadata: Metadata = {
   title: "SEVATO Warehouse",
-  description: "Internal warehouse system",
+  description: "Internal panel",
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="bg">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+      <body>
+        <AuthGuard>{children}</AuthGuard>
       </body>
     </html>
   );
