@@ -12,19 +12,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // login страницата е публична
+    // /login е публичен
     if (pathname === "/login") {
       setReady(true);
       return;
     }
 
-    // четем от localStorage
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem(STORAGE_KEY)
-        : null;
+    if (typeof window === "undefined") return;
 
-    // ако няма токен → пращаме към /login
+    const token = sessionStorage.getItem(STORAGE_KEY);
+
     if (!token || token !== PASSWORD) {
       router.replace(`/login?from=${encodeURIComponent(pathname || "/")}`);
       return;

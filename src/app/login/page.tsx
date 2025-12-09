@@ -12,15 +12,11 @@ export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
 
-  // ако вече сме логнати → директно към /
+  // ако вече има сесия (в същия таб) -> директно към /
   useEffect(() => {
-    if (!PASSWORD) return;
+    if (!PASSWORD || typeof window === "undefined") return;
 
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem(STORAGE_KEY)
-        : null;
-
+    const token = sessionStorage.getItem(STORAGE_KEY);
     if (token === PASSWORD) {
       const from = search.get("from") || "/";
       router.replace(from);
@@ -37,7 +33,8 @@ export default function LoginPage() {
     }
 
     if (password === PASSWORD) {
-      localStorage.setItem(STORAGE_KEY, PASSWORD);
+      // ЗАПАЗВАМЕ САМО ЗА ТОЗИ TAB
+      sessionStorage.setItem(STORAGE_KEY, PASSWORD);
       const from = search.get("from") || "/";
       router.replace(from);
     } else {
