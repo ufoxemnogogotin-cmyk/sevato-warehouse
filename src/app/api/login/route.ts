@@ -1,56 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
+type LoginRequestBody = {
+  password?: string;
+};
+
+export async function POST(req: Request) {
+  let body: LoginRequestBody;
+
   try {
-    const body = await req.json().catch(() => ({} as any));
-    const password = body?.password as string | undefined;
-
-    const expectedPassword = process.env.WAREHOUSE_ADMIN_PASSWORD;
-
-    // 1) Проверка дали env е заредено
-    if (!expectedPassword) {
-      console.error("WAREHOUSE_ADMIN_PASSWORD is not set on the server");
-      return NextResponse.json(
-        { success: false, error: "Server misconfigured" },
-        { status: 500 }
-      );
-    }
-
-    // 2) Малко диагностика (само дължини, не самата парола)
-    console.log("Login attempt", {
-      hasPassword: Boolean(password),
-      passwordLength: password?.length ?? 0,
-      expectedLength: expectedPassword.length,
-    });
-
-    // 3) Сравняваме тримнати стойности
-    const normalizedInput = (password ?? "").trim();
-    const normalizedExpected = expectedPassword.trim();
-
-    if (!normalizedInput || normalizedInput !== normalizedExpected) {
-      return NextResponse.json(
-        { success: false, error: "Invalid password" },
-        { status: 401 }
-      );
-    }
-
-    // 4) Успех – слагаме cookie
-    const res = NextResponse.json({ success: true });
-
-    res.cookies.set("sevato_auth", "ok", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30, // 30 дни
-    });
-
-    return res;
-  } catch (err) {
-    console.error("Login API error", err);
+    body = (await req.json()) as LoginRequestBody;
+  } catch (e) {
     return NextResponse.json(
-      { success: false, error: "Server error" },
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const password = body.password;
+  const expectedPassword = process.env.WAREHOUSE_ADMIN_PASSWORD;
+
+  // Ако не сме задали парола в env → това е грешка в конфигурацията
+  if (!expectedPassword) {
+    console.error("WAREHOUSE_ADMIN_PASSWORD is not set");
+    return NextResponse.json(
+      { success: false, error: "Server misconfigured" },
       { status: 500 }
     );
   }
+
+  // Грешна или липсваща парола
+  if (!password || password !== expectedPassword) {
+    return NextResponse.json(
+      { success: false, error: "Invalid password" },
+      { status: 401 }
+    );
+  }
+
+  // Успешен логин → сетваме cookie
+  const res = NextResponse.json({ success: true });
+
+  res.cookies.set("sevato_auth", "ok", {
+    httpOnly: true,
+    // Важно: secure само в production, иначе на localhost cookie-то не се праща
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30, // 30 дни
+  });
+
+  return res;
 }

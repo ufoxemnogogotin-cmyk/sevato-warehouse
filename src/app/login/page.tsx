@@ -10,18 +10,34 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
 
-    if (res.ok) {
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      // Ако API-то връща { success: false, error: "..." }
+      if (!res.ok || data?.success === false) {
+        console.log("Login error:", data);
+        setError(data?.error || "Грешна парола.");
+        return;
+      }
+
+      // УСПЕШЕН логин -> редирект към "from" или /
       const params = new URLSearchParams(window.location.search);
       const from = params.get("from") || "/";
       window.location.href = from;
-    } else {
-      setError("Грешна парола.");
+    } catch (err: any) {
+      console.error("Login request failed:", err);
+      setError("Мрежова грешка при логин: " + (err?.message || ""));
     }
   }
 
