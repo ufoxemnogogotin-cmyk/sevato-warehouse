@@ -1,5 +1,8 @@
 "use client";
 
+import AuthGuard from "./AuthGuard";
+
+
 import Link from "next/link";
 
 export default function Home() {

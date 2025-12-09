@@ -18,7 +18,6 @@ export default function LoginPage() {
 
     if (password === correctPassword) {
       localStorage.setItem("warehouse-auth", "ok");
-
       const from = search.get("from") || "/";
       router.replace(from);
     } else {
