@@ -5,10 +5,12 @@ import { useState } from "react";
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDebug(null);
 
     try {
       const res = await fetch("/api/login", {
@@ -24,9 +26,12 @@ export default function LoginPage() {
         data = null;
       }
 
-      // Ако API-то връща { success: false, error: "..." }
+      console.log("Login response:", res.status, data);
+      setDebug(
+        `status=${res.status}, body=${JSON.stringify(data ?? null)}`
+      );
+
       if (!res.ok || data?.success === false) {
-        console.log("Login error:", data);
         setError(data?.error || "Грешна парола.");
         return;
       }
@@ -73,7 +78,14 @@ export default function LoginPage() {
         >
           SEVATO Warehouse
         </h1>
-        <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 24, textAlign: "center" }}>
+        <p
+          style={{
+            fontSize: 13,
+            opacity: 0.8,
+            marginBottom: 24,
+            textAlign: "center",
+          }}
+        >
           Вход с парола.
         </p>
 
@@ -115,6 +127,19 @@ export default function LoginPage() {
           {error && (
             <p style={{ color: "#f97316", fontSize: 13, marginTop: 4 }}>
               {error}
+            </p>
+          )}
+
+          {debug && (
+            <p
+              style={{
+                color: "#9ca3af",
+                fontSize: 11,
+                marginTop: 4,
+                wordBreak: "break-all",
+              }}
+            >
+              DEBUG: {debug}
             </p>
           )}
         </form>

@@ -1,3 +1,4 @@
+// src/app/api/login/route.ts
 import { NextResponse } from "next/server";
 
 type LoginRequestBody = {
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as LoginRequestBody;
   } catch (e) {
+    console.error("Login: invalid JSON body", e);
     return NextResponse.json(
       { success: false, error: "Invalid JSON body" },
       { status: 400 }
@@ -19,7 +21,11 @@ export async function POST(req: Request) {
   const password = body.password;
   const expectedPassword = process.env.WAREHOUSE_ADMIN_PASSWORD;
 
-  // Ако не сме задали парола в env → това е грешка в конфигурацията
+  console.log("Login attempt:", {
+    hasPasswordInBody: !!password,
+    expectedSet: !!expectedPassword,
+  });
+
   if (!expectedPassword) {
     console.error("WAREHOUSE_ADMIN_PASSWORD is not set");
     return NextResponse.json(
@@ -28,8 +34,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Грешна или липсваща парола
   if (!password || password !== expectedPassword) {
+    console.warn("Login: invalid password");
     return NextResponse.json(
       { success: false, error: "Invalid password" },
       { status: 401 }
@@ -41,12 +47,13 @@ export async function POST(req: Request) {
 
   res.cookies.set("sevato_auth", "ok", {
     httpOnly: true,
-    // Важно: secure само в production, иначе на localhost cookie-то не се праща
-    secure: process.env.NODE_ENV === "production",
+    secure: true,        // винаги true (на Vercel си е https)
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 дни
   });
+
+  console.log("Login: success, cookie set");
 
   return res;
 }

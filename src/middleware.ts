@@ -1,3 +1,4 @@
+// src/middleware.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -6,21 +7,25 @@ const PUBLIC_PATHS = ["/login", "/api/login"];
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Позволяваме login и API-то за login
+  // Разрешаваме login страницата и API-то за логин
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
   const session = req.cookies.get("sevato_auth");
 
+  // Ако имаме валидно cookie -> пускаме
   if (session?.value === "ok") {
-    // Има валидно cookie → пускаме
     return NextResponse.next();
   }
 
-  // Няма cookie → пращаме на login
+  // Няма cookie -> пращаме на /login
   const loginUrl = new URL("/login", req.url);
-  loginUrl.searchParams.set("from", pathname || "/");
+
+  // да не правим from=/login, че е безсмислено
+  if (!pathname.startsWith("/login")) {
+    loginUrl.searchParams.set("from", pathname || "/");
+  }
 
   return NextResponse.redirect(loginUrl);
 }
