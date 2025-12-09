@@ -1,17 +1,15 @@
-// src/app/api/login/route.ts
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 type LoginRequestBody = {
   password?: string;
 };
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   let body: LoginRequestBody;
 
   try {
     body = (await req.json()) as LoginRequestBody;
-  } catch (e) {
+  } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON body" },
       { status: 400 }
@@ -36,18 +34,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Успех → сетваме cookie
-  const res = NextResponse.json({ success: true });
-
-  res.cookies.set({
-    name: "sevato_auth",
-    value: "ok",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 дни
-  });
-
-  return res;
+  // вече НЕ слагаме cookie – само казваме "success"
+  return NextResponse.json({ success: true });
 }

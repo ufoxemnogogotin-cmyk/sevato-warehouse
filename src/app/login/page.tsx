@@ -5,10 +5,12 @@ import { useState } from "react";
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDebug("");
 
     try {
       const res = await fetch("/api/login", {
@@ -17,19 +19,23 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
 
-      const text = await res.text();
-      console.log("DEBUG login response:", res.status, text);
-
       let data: any = null;
       try {
-        data = JSON.parse(text);
+        data = await res.json();
       } catch {
         data = null;
       }
 
-      if (!res.ok || data?.success === false) {
+      setDebug(`DEBUG: status=${res.status}, body=${JSON.stringify(data)}`);
+
+      if (!res.ok || data?.success !== true) {
         setError(data?.error || "Грешна парола.");
         return;
+      }
+
+      // МАРКИРАМЕ, ЧЕ СМЕ ЛОГНАТИ
+      if (typeof window !== "undefined") {
+        localStorage.setItem("sevato_auth", "ok");
       }
 
       const params = new URLSearchParams(window.location.search);
@@ -38,7 +44,7 @@ export default function LoginPage() {
       window.location.href = from;
     } catch (err: any) {
       console.error("Login request failed:", err);
-      setError("Мрежова грешка при логин: " + (err?.message || ""));
+      setError("Мрежова грешка при логин.");
     }
   }
 
@@ -123,6 +129,12 @@ export default function LoginPage() {
           {error && (
             <p style={{ color: "#f97316", fontSize: 13, marginTop: 4 }}>
               {error}
+            </p>
+          )}
+
+          {debug && (
+            <p style={{ color: "#6b7280", fontSize: 11, marginTop: 4 }}>
+              {debug}
             </p>
           )}
         </form>
