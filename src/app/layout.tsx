@@ -1,6 +1,11 @@
+"use client"; // <<< ТРЯБВА ДА Е НА ПЪРВИЯ РЕД!
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 // Шрифтове
 const geistSans = Geist({
@@ -18,36 +23,28 @@ export const metadata: Metadata = {
   description: "Internal warehouse system",
 };
 
-// ----------------------------
-// CLIENT-SIDE AUTH GUARD
-// ----------------------------
-"use client";
-
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
-
+// ----------------- AUTH GUARD -----------------
 function Guard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // login страницата е публична
-    if (pathname === "/login") return;
+    const isLogin = pathname === "/login";
+    const auth = typeof window !== "undefined"
+      ? localStorage.getItem("warehouse-auth")
+      : null;
 
-    // проверка за localStorage ключа
-    const ok = localStorage.getItem("warehouse-auth");
+    console.log("GUARD RUN:", { pathname, auth });
 
-    if (!ok) {
-      router.replace(`/login?from=${encodeURIComponent(pathname ?? "/")}`);
+    if (!auth && !isLogin) {
+      router.replace(`/login?from=${encodeURIComponent(pathname || "/")}`);
     }
-  }, [router, pathname]);
+  }, [pathname, router]);
 
   return <>{children}</>;
 }
 
-// ----------------------------
-// ROOT LAYOUT
-// ----------------------------
+// ----------------- ROOT LAYOUT -----------------
 export default function RootLayout({
   children,
 }: {
