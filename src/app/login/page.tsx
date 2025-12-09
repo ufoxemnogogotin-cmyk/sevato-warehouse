@@ -5,12 +5,10 @@ import { useState } from "react";
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [debug, setDebug] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setDebug(null);
 
     try {
       const res = await fetch("/api/login", {
@@ -19,26 +17,24 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
 
+      const text = await res.text();
+      console.log("DEBUG login response:", res.status, text);
+
       let data: any = null;
       try {
-        data = await res.json();
+        data = JSON.parse(text);
       } catch {
         data = null;
       }
-
-      console.log("Login response:", res.status, data);
-      setDebug(
-        `status=${res.status}, body=${JSON.stringify(data ?? null)}`
-      );
 
       if (!res.ok || data?.success === false) {
         setError(data?.error || "Грешна парола.");
         return;
       }
 
-      // УСПЕШЕН логин -> редирект към "from" или /
       const params = new URLSearchParams(window.location.search);
       const from = params.get("from") || "/";
+
       window.location.href = from;
     } catch (err: any) {
       console.error("Login request failed:", err);
@@ -127,19 +123,6 @@ export default function LoginPage() {
           {error && (
             <p style={{ color: "#f97316", fontSize: 13, marginTop: 4 }}>
               {error}
-            </p>
-          )}
-
-          {debug && (
-            <p
-              style={{
-                color: "#9ca3af",
-                fontSize: 11,
-                marginTop: 4,
-                wordBreak: "break-all",
-              }}
-            >
-              DEBUG: {debug}
             </p>
           )}
         </form>
