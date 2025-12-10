@@ -1,66 +1,161 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
-// ✅ 1) GET – за да може да цъкаш линк в браузъра:
-// http://localhost:3000/api/process-qs?source_id=... 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const sourceId = searchParams.get("source_id");
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const openaiApiKey = process.env.OPENAI_API_KEY!;
 
-    if (!sourceId) {
-      return NextResponse.json(
-        { error: "Липсва source_id в URL-а" },
-        { status: 400 }
-      );
-    }
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const openai = new OpenAI({ apiKey: openaiApiKey });
 
-    // Пример: маркираме документа като "processing"
-    const { error } = await supabase
-      .from("source_documents")
-      .update({ status: "processing" })
-      .eq("id", sourceId);
+type ProcessBody = {
+  documentId: string;
+};
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    console.log("Започвам обработка на QS:", sourceId);
-
-    // Тук по-късно ще вкараме AI логиката (Vision, парсване на части и т.н.)
-
-    return NextResponse.json({
-      ok: true,
-      sourceId,
-      message: "QS документът е отбелязан като processing. AI логиката ще се добави после.",
-    });
-  } catch (err: any) {
-    console.error("Unhandled error in GET /api/process-qs:", err);
-    return NextResponse.json(
-      { error: "Internal error", details: err?.message },
-      { status: 500 }
-    );
-  }
-}
-
-// ✅ 2) POST – оставяме го за бъдещ UI (бутон, форма и т.н.)
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const sourceId = body.sourceId;
-
-  if (!sourceId) {
+  let body: ProcessBody;
+  try {
+    body = (await req.json()) as ProcessBody;
+  } catch {
     return NextResponse.json(
-      { error: "Липсва sourceId в body-то" },
+      { ok: false, error: "Invalid JSON body" },
       { status: 400 }
     );
   }
 
-  // Можем да реюзнем същата логика като при GET:
-  const url = new URL(req.url);
-  url.searchParams.set("source_id", sourceId);
-  return GET(new Request(url.toString(), { method: "GET" }));
+  if (!body.documentId) {
+    return NextResponse.json(
+      { ok: false, error: "Missing documentId" },
+      { status: 400 }
+    );
+  }
+
+  // 1) Взимаме source_document
+  const { data: doc, error: docError } = await supabase
+    .from("source_documents")
+    .select("*")
+    .eq("id", body.documentId)
+    .single();
+
+  if (docError || !doc) {
+    console.error("Doc error:", docError);
+    return NextResponse.json(
+      { ok: false, error: "Document not found" },
+      { status: 404 }
+    );
+  }
+
+  const imageUrl: string = doc.file_url;
+  if (!imageUrl) {
+    return NextResponse.json(
+      { ok: false, error: "Document has no file_url" },
+      { status: 400 }
+    );
+  }
+
+  // 2) Маркираме го като processing
+  await supabase
+    .from("source_documents")
+    .update({ status: "processing" })
+    .eq("id", doc.id);
+
+  // 3) Пращаме снимката към OpenAI Vision
+  //    ВАЖНО: отговорът трябва да е чист JSON, който после ще парснем.
+  const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      {
+        role: "system",
+        content:
+          "Ти си асистент, който чете QS листове за части за часовници. Връщай САМО валиден JSON, без обяснения.",
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `
+Имаш снимка на QS лист с части.
+
+Искам да върнеш JSON с този формат:
+
+{
+  "items": [
+    {
+      "raw_text": "както го е написал китаеца",
+      "quantity": 1
+    }
+  ]
+}
+
+- Взимай само редовете, които са реални части (dial, case, hands, movement, strap и т.н.).
+- quantity може да е null, ако не си сигурен.
+- НЕ добавяй допълнителни полета.
+- НЕ добавяй текст извън JSON.
+          `,
+          },
+          {
+            type: "input_image",
+            image_url: imageUrl,
+          },
+        ],
+      },
+    ],
+  });
+
+  const content = response.output[0].content[0];
+  if (content.type !== "output_text") {
+    return NextResponse.json(
+      { ok: false, error: "Unexpected OpenAI response format" },
+      { status: 500 }
+    );
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content.text);
+  } catch (e) {
+    console.error("JSON parse error from OpenAI:", e, content.text);
+    return NextResponse.json(
+      { ok: false, error: "Failed to parse JSON from OpenAI" },
+      { status: 500 }
+    );
+  }
+
+  const items: Array<{ raw_text: string; quantity?: number }> =
+    parsed.items ?? [];
+
+  // 4) Записваме в extracted_items
+  const rows = items.map((item) => ({
+    source_document_id: doc.id,
+    raw_text: item.raw_text,
+    quantity: item.quantity ?? null,
+    raw_json: item,
+  }));
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase
+      .from("extracted_items")
+      .insert(rows);
+
+    if (insertError) {
+      console.error("Insert extracted_items error:", insertError);
+      return NextResponse.json(
+        { ok: false, error: "Failed to insert extracted_items" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // 5) Маркираме документа като done
+  await supabase
+    .from("source_documents")
+    .update({ status: "done" })
+    .eq("id", doc.id);
+
+  return NextResponse.json({
+    ok: true,
+    count: rows.length,
+  });
 }
